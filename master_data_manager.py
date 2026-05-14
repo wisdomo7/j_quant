@@ -42,7 +42,7 @@ FALLBACK_NAMES = {
 # ============================================================
 # 캐시 관리
 # ============================================================
-def is_cache_fresh(max_age_hours=24):
+def is_cache_fresh(max_age_hours=720):
     if not os.path.exists(MASTER_CACHE_FILE):
         return False
     try:
