@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# 로컬 캐시 (Cloud에서는 매번 생성)
+# cache/  # 주석 처리: 캐시 업로드 권장 시 사용
+
+# 환경 변수
+.env
+.env.local
+
+# 로그
+*.log
+logs/
+
+# Streamlit
+.streamlit/secrets.toml
