@@ -1,7 +1,6 @@
 """
-J Partner Quant Screener v4.0.2 — Streamlit Cloud Web App
+J Partner Quant Screener v4.0.2 — Streamlit Web App
 HTML 직접 렌더링으로 pyarrow 호환성 문제 완전 해결
-모바일 최적화 + 비밀번호 보호 추가
 """
 
 import streamlit as st
@@ -9,54 +8,16 @@ import json
 import os
 from datetime import datetime
 
+from j_engine_v4 import analyze_dual_mode, WHITELIST, HOLDINGS, BLACKLIST
+
 # ============================================================
-# 페이지 설정 (모바일 최적화)
+# 페이지 설정
 # ============================================================
 st.set_page_config(
     page_title="J Partner Quant v4.0.2",
     page_icon="🎯",
     layout="wide",
-    initial_sidebar_state="collapsed",  # 모바일에서 사이드바 자동 접힘
 )
-
-# ============================================================
-# 비밀번호 보호 (정재영님만 접속 가능)
-# ============================================================
-def check_password():
-    """Streamlit Cloud Secrets에서 비밀번호 가져와서 검증"""
-    def password_entered():
-        # Streamlit Cloud의 Secrets에서 비밀번호 읽기
-        correct_password = st.secrets.get("APP_PASSWORD", "jung2026")
-        if st.session_state["password"] == correct_password:
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]
-        else:
-            st.session_state["password_correct"] = False
-
-    if "password_correct" not in st.session_state:
-        st.markdown("""
-        <div style="text-align:center; padding:50px 20px;">
-            <h1 style="color:#60a5fa;">🎯 J Partner Quant</h1>
-            <p style="color:#94a3b8; font-size:14px;">정재영님 전용 시스템</p>
-        </div>
-        """, unsafe_allow_html=True)
-        st.text_input("🔐 비밀번호 입력", type="password", on_change=password_entered, key="password")
-        st.stop()
-    elif not st.session_state["password_correct"]:
-        st.markdown("""
-        <div style="text-align:center; padding:50px 20px;">
-            <h1 style="color:#60a5fa;">🎯 J Partner Quant</h1>
-        </div>
-        """, unsafe_allow_html=True)
-        st.text_input("🔐 비밀번호 입력", type="password", on_change=password_entered, key="password")
-        st.error("❌ 비밀번호가 틀렸습니다")
-        st.stop()
-
-# 비밀번호 검증 실행
-check_password()
-
-# 비밀번호 통과 후 엔진 import
-from j_engine_v4 import analyze_dual_mode, WHITELIST, HOLDINGS, BLACKLIST
 
 st.markdown("""
 <style>
@@ -256,7 +217,7 @@ if scan_mode.startswith("전체 스마트 스캔"):
     with col2:
         if st.button("스캔 시작", type="primary", use_container_width=True):
             try:
-                from data_collector_v4 import smart_scan_all
+                from data_collector_v5 import smart_scan_all
                 with st.spinner("Layer 1~3 진행 중..."):
                     stocks = smart_scan_all(min_market_cap=500, min_deal_vol=10, min_volume_ratio=1.5)
                     with open(CACHE_FILE, "w", encoding="utf-8") as f:
@@ -269,7 +230,7 @@ if scan_mode.startswith("전체 스마트 스캔"):
 elif scan_mode.startswith("관심 종목"):
     if st.button("관심 종목 수집 시작", type="primary"):
         try:
-            from data_collector_v4 import quick_collect_watchlist
+            from data_collector_v5 import quick_collect_watchlist
             watchlist = [
                 "005380", "000660", "005930", "034020", "012450",
                 "141080", "277810", "138080", "083650", "272210",
