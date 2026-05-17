@@ -1,12 +1,14 @@
 """
-J Partner Quant Screener v4.0.2 — Streamlit Web App
-HTML 직접 렌더링으로 pyarrow 호환성 문제 완전 해결
+J Partner Quant Screener v4.0.3 — Streamlit Web App
+HTML 직접 렌더링 + 시장 국면 동적화 (yfinance) + v5 엔진 통합
 """
 
 import streamlit as st
 import json
 import os
 from datetime import datetime
+import yfinance as yf
+import numpy as np
 
 from j_engine_v4 import analyze_dual_mode, WHITELIST, HOLDINGS, BLACKLIST
 
@@ -14,7 +16,7 @@ from j_engine_v4 import analyze_dual_mode, WHITELIST, HOLDINGS, BLACKLIST
 # 페이지 설정
 # ============================================================
 st.set_page_config(
-    page_title="J Partner Quant v4.0.2",
+    page_title="J Partner Quant v4.0.3",
     page_icon="🎯",
     layout="wide",
 )
@@ -136,23 +138,123 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 CACHE_FILE = os.path.join(CACHE_DIR, "latest_scan.json")
 
 # ============================================================
+# 시장 국면 동적 조회 (yfinance, 1시간 캐시)
+# ============================================================
+@st.cache_data(ttl=3600)
+def get_market_snapshot():
+    """코스피·환율·RSI 동적 가져오기 (1시간마다 갱신)"""
+    snapshot = {
+        "kospi": 0,
+        "kospi_change": 0,
+        "kospi_rsi": 50.0,
+        "usdkrw": 0,
+        "usdkrw_change": 0,
+        "data_date": "",
+    }
+    
+    try:
+        # 코스피 지수
+        kospi_data = yf.Ticker("^KS11").history(period="3mo")
+        if len(kospi_data) > 0:
+            snapshot["kospi"] = float(kospi_data['Close'].iloc[-1])
+            if len(kospi_data) > 1:
+                prev = float(kospi_data['Close'].iloc[-2])
+                snapshot["kospi_change"] = (snapshot["kospi"] - prev) / prev * 100
+            
+            # RSI(14) 계산
+            delta = kospi_data['Close'].diff()
+            gain = delta.where(delta > 0, 0).rolling(14).mean()
+            loss = -delta.where(delta < 0, 0).rolling(14).mean()
+            rs = gain / loss.replace(0, np.nan)
+            rsi = 100 - (100 / (1 + rs))
+            rsi_val = rsi.iloc[-1]
+            if not np.isnan(rsi_val):
+                snapshot["kospi_rsi"] = float(rsi_val)
+            
+            # 기준일
+            snapshot["data_date"] = kospi_data.index[-1].strftime("%Y-%m-%d")
+    except Exception as e:
+        print(f"코스피 조회 실패: {e}")
+    
+    try:
+        # 환율 (USD/KRW)
+        usdkrw = yf.Ticker("KRW=X").history(period="5d")
+        if len(usdkrw) > 0:
+            snapshot["usdkrw"] = float(usdkrw['Close'].iloc[-1])
+            if len(usdkrw) > 1:
+                prev_krw = float(usdkrw['Close'].iloc[-2])
+                snapshot["usdkrw_change"] = (snapshot["usdkrw"] - prev_krw) / prev_krw * 100
+    except Exception as e:
+        print(f"환율 조회 실패: {e}")
+    
+    return snapshot
+
+
+def get_rsi_label(rsi):
+    """RSI 라벨 (V1.1 운용 지침 기준)"""
+    if rsi >= 80:
+        return "🚨 극단 과열"
+    elif rsi >= 70:
+        return "⚠ 과열"
+    elif rsi >= 50:
+        return "📈 강세"
+    elif rsi >= 30:
+        return "📉 약세"
+    else:
+        return "🎯 과매도"
+
+
+def get_krw_label(usdkrw):
+    """환율 라벨 (V1.1 임계점 기준)"""
+    if usdkrw >= 1500:
+        return "🚨 1,500 돌파!"
+    elif usdkrw >= 1480:
+        return "⚠ 1,500선 근접"
+    elif usdkrw >= 1400:
+        return "📊 정상 범위"
+    else:
+        return "✅ 안정권"
+
+
+# ============================================================
 # 헤더
 # ============================================================
 st.title("🎯 J Partner Quant Screener")
-st.caption(f"v4.0.2 · 보수형/공격형 듀얼 분석 · {datetime.now().strftime('%Y-%m-%d %H:%M')} KST")
+st.caption(f"v4.0.3 · 보수형/공격형 듀얼 분석 · {datetime.now().strftime('%Y-%m-%d %H:%M')} KST")
 
 # ============================================================
 # 사이드바
 # ============================================================
 with st.sidebar:
-    st.header("시장 국면")
-    st.metric("코스피", "7,844.01", "+2.63%")
-    st.metric("코스피 RSI", "86.4", "과열")
-    st.metric("원/달러", "1,491.10", "1,500선 근접")
-    st.caption("외국인 5월 누적 -16조 매도")
+    st.header("📊 시장 국면")
+    
+    # 동적 데이터 가져오기 (1시간 캐시)
+    market = get_market_snapshot()
+    
+    if market["kospi"] > 0:
+        kospi_change_str = f"{market['kospi_change']:+.2f}%"
+        st.metric("코스피", f"{market['kospi']:,.2f}", kospi_change_str)
+        
+        rsi_label = get_rsi_label(market["kospi_rsi"])
+        st.metric("코스피 RSI", f"{market['kospi_rsi']:.1f}", rsi_label)
+    else:
+        st.metric("코스피", "조회 중...", "")
+        st.metric("코스피 RSI", "-", "")
+    
+    if market["usdkrw"] > 0:
+        krw_change_str = f"{market['usdkrw_change']:+.2f}%"
+        st.metric("원/달러", f"{market['usdkrw']:,.2f}", krw_change_str)
+        st.caption(get_krw_label(market["usdkrw"]))
+    else:
+        st.metric("원/달러", "조회 중...", "")
+    
+    if market["data_date"]:
+        st.caption(f"📅 기준일: {market['data_date']}")
+    
+    st.caption("⚠ 외국인 5월 누적 -16조 매도 (수동)")
 
     st.divider()
-    st.subheader("내 포트폴리오")
+    st.subheader("💼 내 포트폴리오")
     st.markdown("""
 - **현대차** · 10주 · `+78%`
 - **SPYM** · 2주 · `+105%`
@@ -161,11 +263,11 @@ with st.sidebar:
 """)
     
     st.divider()
-    st.subheader("Operation Recovery")
+    st.subheader("🛡 Operation Recovery")
     st.progress(0.27, text="27% · 잔여 -102만")
     
     st.divider()
-    st.subheader("자동 차단 종목")
+    st.subheader("🚫 자동 차단 종목")
     for code, reason in BLACKLIST.items():
         st.caption(f"`{code}` {reason}")
 
@@ -210,7 +312,7 @@ SAMPLE_DATA = [
 # ============================================================
 # 스캐닝 실행
 # ============================================================
-if scan_mode.startswith("전체 스마트 스캔"):
+if scan_mode.startswith("전체 스마트"):
     col1, col2 = st.columns([3, 1])
     with col1:
         st.info("전체 스캔은 코스피·코스닥 약 2,400개 종목을 4단계로 분석합니다. 3~5분 소요됩니다.")
@@ -401,27 +503,59 @@ if stocks and scan_executed:
             st.markdown(blocked_html, unsafe_allow_html=True)
 
 # ============================================================
-# 최종 액션
+# 핵심 액션 안내 (동적)
 # ============================================================
 if stocks and scan_executed:
     st.header("3. 오늘의 핵심 액션")
     
-    action_html = """
-    <table class="j-table">
-        <thead><tr><th>시점</th><th>행동</th><th>조건</th></tr></thead>
-        <tbody>
-            <tr><td>오늘 21:30</td><td>미 4월 PPI 발표 확인</td><td>+0.4% 이하 → 매수 우호</td></tr>
-            <tr><td>5/14 오전</td><td>NC 1주 매도 시도</td><td>시가 +2% 갭상승 시</td></tr>
-            <tr><td>5/14 오전</td><td>미중 회담 보도 확인</td><td>관세 휴전 → SK하이닉스</td></tr>
-            <tr><td>5/14 오후</td><td>두산E 매수 검토</td><td>12만원 초반 / 50만 1차</td></tr>
-            <tr><td>5/15</td><td>회담 종합 판단</td><td>빅딜 → 추가 100만</td></tr>
-            <tr><td>6월</td><td>BD IPO 결정 확인</td><td>현대차 보유 유지</td></tr>
-        </tbody>
-    </table>
-    """
+    market = get_market_snapshot()
+    today_str = datetime.now().strftime("%Y-%m-%d (%a)")
+    
+    # 시장 상황에 따른 동적 액션
+    actions = []
+    
+    if market["kospi_rsi"] >= 80:
+        actions.append(("🚨 시장", "코스피 RSI 극단 과열 - 신규 진입 자제, 현금 50% 이상"))
+    elif market["kospi_rsi"] >= 70:
+        actions.append(("⚠ 시장", "코스피 과열 - 신규 진입 신중, 분할 진입 권장"))
+    elif market["kospi_rsi"] <= 30:
+        actions.append(("🎯 시장", "코스피 과매도 - 적극 매수 검토, 손익비 2.5:1 이상"))
+    else:
+        actions.append(("📊 시장", "정상 범위 - 평소 운용 지침 적용"))
+    
+    if market["usdkrw"] >= 1500:
+        actions.append(("💱 환율", "1,500 돌파! - SPYM 환차익 점검, 외인 매도 가속 대비"))
+    elif market["usdkrw"] >= 1480:
+        actions.append(("⚠ 환율", "1,500선 근접 - 미국 ETF 환차익 모니터"))
+    
+    # 통과 종목에서 RSI 30 이하 매수 후보 추출
+    if results.get("conservative"):
+        all_passed = (results["conservative"]["long"] + results["conservative"]["swing"] +
+                     results["aggressive"]["long"] + results["aggressive"]["swing"])
+        rsi_low = [s for s in all_passed if s.get("rsi", 50) < 35]
+        if rsi_low:
+            top3 = sorted(rsi_low, key=lambda x: x.get("rsi", 50))[:3]
+            names = ", ".join([s.get("name", "") for s in top3])
+            actions.append(("🎯 매수 후보", f"RSI 35 이하 과매도: {names}"))
+    
+    actions.append(("🛡 CORE 종목", "현대차 절대 매도 금지 - BD IPO까지 보유"))
+    actions.append(("📅 정기", "다음 주 월요일 시초 갭다운 진입 트리거 모니터"))
+    
+    action_html = "<table class='j-table'><thead><tr><th>구분</th><th>액션</th></tr></thead><tbody>"
+    for category, desc in actions:
+        action_html += f"<tr><td><b>{category}</b></td><td>{desc}</td></tr>"
+    action_html += "</tbody></table>"
     st.markdown(action_html, unsafe_allow_html=True)
     
-    st.success("핵심 결론: 관망 + 우선순위 실행 · 481만원의 30%만 1차 진입 · 현대차 절대 매도 금지")
+    # 종합 결론
+    if market["kospi_rsi"] >= 80:
+        st.error(f"🚨 핵심 결론 ({today_str}): 시장 극단 과열 - 신규 진입 자제, 현금 보전 + 손익비 2.5:1 이상만")
+    elif market["kospi_rsi"] >= 70:
+        st.warning(f"⚠ 핵심 결론 ({today_str}): 과열 - 분할 진입 + CORE 절대 매도 금지")
+    elif market["kospi_rsi"] <= 30:
+        st.success(f"🎯 핵심 결론 ({today_str}): 과매도 - 적극 매수 검토 + 현대차 절대 매도 금지")
+    else:
+        st.info(f"📊 핵심 결론 ({today_str}): 평상시 운용 + 481만원의 30%만 1차 진입 + 현대차 절대 매도 금지")
 
 st.divider()
-st.caption("J Partner Quant v4.0.2 · 모든 매매 전 HTS 실시간 가격 직접 확인 필수")
+st.caption(f"J Partner Quant v4.0.3 · 모든 매매 전 HTS 실시간 가격 직접 확인 필수 · 데이터: yfinance + FDR")
