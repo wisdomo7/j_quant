@@ -1,0 +1,32 @@
+{
+  "trades": [
+    {
+      "stock": "NC소프트",
+      "action": "손절",
+      "type": "장기",
+      "delay_days": 5,
+      "result": "손절",
+      "amount": -549896,
+      "timestamp": "2026-05-21T20:43:46.942997"
+    },
+    {
+      "stock": "비에이치아이",
+      "action": "물타기",
+      "type": "스윙",
+      "j_recommended": true,
+      "entry_speed": "fast",
+      "result": "익절",
+      "amount": 54900,
+      "timestamp": "2026-05-21T20:43:46.961732"
+    },
+    {
+      "stock": "현대차",
+      "action": "매수",
+      "type": "장기",
+      "j_recommended": true,
+      "entry_speed": "fast",
+      "result": "익절",
+      "timestamp": "2026-05-21T20:43:46.992986"
+    }
+  ]
+}

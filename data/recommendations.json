@@ -1,0 +1,102 @@
+{
+  "recommendations": [
+    {
+      "code": "034020",
+      "name": "두산에너빌리티",
+      "entry_price": 101900,
+      "target_price": 130000,
+      "stop_loss": 90900,
+      "confidence": 82,
+      "timestamp": "2026-05-21T20:43:47.016822",
+      "status": "진행중"
+    },
+    {
+      "code": "034020",
+      "name": "두산에너빌리티",
+      "mode": "aggressive",
+      "track": "long",
+      "entry_price": 108000,
+      "target_price": 140400,
+      "stop_loss": 91800,
+      "timestamp": "2026-05-21T20:49:01.292394",
+      "status": "진행중"
+    },
+    {
+      "code": "005380",
+      "name": "현대차",
+      "mode": "aggressive",
+      "track": "long",
+      "entry_price": 653000,
+      "target_price": 848900,
+      "stop_loss": 555050,
+      "timestamp": "2026-05-21T20:49:01.300937",
+      "status": "진행중"
+    },
+    {
+      "code": "034020",
+      "name": "두산에너빌리티",
+      "mode": "aggressive",
+      "track": "long",
+      "entry_price": 108000,
+      "target_price": 140400,
+      "stop_loss": 91800,
+      "timestamp": "2026-05-21T21:01:20.918181",
+      "status": "진행중"
+    },
+    {
+      "code": "005380",
+      "name": "현대차",
+      "mode": "aggressive",
+      "track": "long",
+      "entry_price": 653000,
+      "target_price": 848900,
+      "stop_loss": 555050,
+      "timestamp": "2026-05-21T21:01:20.932418",
+      "status": "진행중"
+    },
+    {
+      "code": "005930",
+      "name": "삼성전자",
+      "mode": "aggressive",
+      "track": "long",
+      "entry_price": 296000,
+      "target_price": 384800,
+      "stop_loss": 251600,
+      "timestamp": "2026-05-21T21:01:20.944144",
+      "status": "진행중"
+    },
+    {
+      "code": "034020",
+      "name": "두산에너빌리티",
+      "mode": "aggressive",
+      "track": "long",
+      "entry_price": 108000,
+      "target_price": 140400,
+      "stop_loss": 91800,
+      "timestamp": "2026-05-21T21:02:11.762204",
+      "status": "진행중"
+    },
+    {
+      "code": "005380",
+      "name": "현대차",
+      "mode": "aggressive",
+      "track": "long",
+      "entry_price": 653000,
+      "target_price": 848900,
+      "stop_loss": 555050,
+      "timestamp": "2026-05-21T21:02:11.779583",
+      "status": "진행중"
+    },
+    {
+      "code": "005930",
+      "name": "삼성전자",
+      "mode": "aggressive",
+      "track": "long",
+      "entry_price": 296000,
+      "target_price": 384800,
+      "stop_loss": 251600,
+      "timestamp": "2026-05-21T21:02:11.791436",
+      "status": "진행중"
+    }
+  ]
+}
