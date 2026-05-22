@@ -1,5 +1,12 @@
+import os, time
+os.environ['TZ'] = 'Asia/Seoul'
+try:
+    time.tzset()
+except AttributeError:
+    pass
+
 """
-J Partner Quant V6.0 - 종목 발굴 시스템 (최종)
+J Partner Quant V6.0 - 종목 발굴 시스템 (최종) + 한국시간(KST)
 """
 import streamlit as st
 from datetime import datetime
