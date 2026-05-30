@@ -1,104 +1,71 @@
-# ============================================
-# J Quant V6.0 - 실시간 시장 지표 (HTML 파싱)
-# 네이버 금융 페이지 직접 파싱
-# ============================================
-import requests
-from bs4 import BeautifulSoup
-from datetime import datetime
-from typing import Dict
+"""
+v6_market.py - 실시간 시장 지수 수집 (코스피 / 코스닥 / 원·달러)
+FinanceDataReader 우선 + yfinance 폴백 (이중 안전망)
+app_v6.py의 MarketIndexCollector().get_realtime_index() 호환
+"""
+from datetime import datetime, timedelta
+
+
+def _kst_now():
+    return datetime.utcnow() + timedelta(hours=9)
 
 
 class MarketIndexCollector:
-    """실시간 시장 지표 자동 수집 (네이버 금융 HTML)"""
-    
-    def __init__(self):
-        self.collection_time = None
-        self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    
-    def get_realtime_index(self) -> Dict:
-        self.collection_time = datetime.now()
-        
+    # key: (FinanceDataReader 심볼, yfinance 심볼)
+    TARGETS = {
+        "kospi":   ("KS11", "^KS11"),
+        "kosdaq":  ("KQ11", "^KQ11"),
+        "usd_krw": ("USD/KRW", "KRW=X"),
+    }
+
+    def get_realtime_index(self):
+        """앱이 기대하는 형식으로 반환:
+        {'collection_time': '...', 'kospi': {...}, 'kosdaq': {...}, 'usd_krw': {...}}"""
+        result = {"collection_time": _kst_now().strftime("%Y-%m-%d %H:%M:%S")}
+        for key, (fdr_sym, yf_sym) in self.TARGETS.items():
+            data = self._fetch_fdr(fdr_sym)
+            if data.get("status") != "success":      # FDR 실패 시 yfinance로 재시도
+                data = self._fetch_yf(yf_sym)
+            result[key] = data
+        return result
+
+    def _fmt(self, last, prev):
+        change = (last - prev) / prev * 100 if prev else 0.0
         return {
-            'collection_time': self.collection_time.strftime("%Y-%m-%d %H:%M:%S"),
-            'kospi': self._get_index('KOSPI'),
-            'kosdaq': self._get_index('KOSDAQ'),
-            'usd_krw': self._get_exchange(),
+            "price": f"{last:,.2f}",
+            "change": f"{change:+.2f}%",
+            "status": "success",
         }
-    
-    def _get_index(self, code: str) -> Dict:
-        """지수 실시간 (네이버 금융 HTML)"""
+
+    def _fetch_fdr(self, symbol):
         try:
-            url = f"https://finance.naver.com/sise/sise_index.naver?code={code}"
-            r = requests.get(url, headers=self.headers, timeout=10)
-            r.encoding = 'euc-kr'
-            soup = BeautifulSoup(r.text, 'html.parser')
-            
-            now_value = soup.select_one('#now_value')
-            change_rate = soup.select_one('#change_value_and_rate')
-            
-            if now_value:
-                price = now_value.text.strip()
-                change = change_rate.text.strip().replace('\n', ' ').replace('\t', '') if change_rate else ""
-                
-                return {
-                    'price': price,
-                    'change': change,
-                    'status': 'success'
-                }
-            else:
-                return {'status': 'failed', 'error': '셀렉터 없음'}
+            import FinanceDataReader as fdr
+            start = (_kst_now() - timedelta(days=10)).strftime("%Y-%m-%d")
+            df = fdr.DataReader(symbol, start)
+            if df is None or len(df) < 2 or "Close" not in df:
+                return {"status": "fail"}
+            last = float(df["Close"].iloc[-1])
+            prev = float(df["Close"].iloc[-2])
+            return self._fmt(last, prev)
         except Exception as e:
-            return {'status': 'failed', 'error': str(e)[:50]}
-    
-    def _get_exchange(self) -> Dict:
-        """원/달러 환율 (네이버 금융 HTML)"""
+            print(f"[FDR 실패] {symbol}: {e}")
+            return {"status": "fail"}
+
+    def _fetch_yf(self, symbol):
         try:
-            url = "https://finance.naver.com/marketindex/"
-            r = requests.get(url, headers=self.headers, timeout=10)
-            r.encoding = 'euc-kr'
-            soup = BeautifulSoup(r.text, 'html.parser')
-            
-            usd = soup.select_one('#exchangeList .value')
-            
-            if usd:
-                return {'price': usd.text.strip(), 'status': 'success'}
-            else:
-                return {'status': 'failed', 'error': '셀렉터 없음'}
+            import yfinance as yf
+            df = yf.Ticker(symbol).history(period="5d")
+            if df is None or len(df) < 2 or "Close" not in df:
+                return {"status": "fail"}
+            last = float(df["Close"].iloc[-1])
+            prev = float(df["Close"].iloc[-2])
+            return self._fmt(last, prev)
         except Exception as e:
-            return {'status': 'failed', 'error': str(e)[:50]}
+            print(f"[yfinance 실패] {symbol}: {e}")
+            return {"status": "fail"}
 
 
+# 단독 실행 테스트용
 if __name__ == "__main__":
-    print("=" * 60)
-    print("V6.0 MarketIndexCollector — 실시간 시장 지표")
-    print("=" * 60)
-    
-    collector = MarketIndexCollector()
-    print("\n🔄 실시간 지수 수집 중...")
-    
-    result = collector.get_realtime_index()
-    
-    print(f"\n⏰ 수집 시각: {result['collection_time']}")
-    print("─" * 60)
-    
-    kospi = result['kospi']
-    if kospi['status'] == 'success':
-        print(f"🇰🇷 코스피: {kospi['price']} ({kospi['change']})")
-    else:
-        print(f"🇰🇷 코스피: 실패 ({kospi.get('error')})")
-    
-    kosdaq = result['kosdaq']
-    if kosdaq['status'] == 'success':
-        print(f"🇰🇷 코스닥: {kosdaq['price']} ({kosdaq['change']})")
-    else:
-        print(f"🇰🇷 코스닥: 실패 ({kosdaq.get('error')})")
-    
-    fx = result['usd_krw']
-    if fx['status'] == 'success':
-        print(f"💵 원/달러: {fx['price']}")
-    else:
-        print(f"💵 원/달러: 실패 ({fx.get('error')})")
-    
-    print("\n" + "=" * 60)
-    print(f"✅ 테스트 완료 ({datetime.now().strftime('%H:%M:%S')})")
-    print("=" * 60)
+    import json
+    print(json.dumps(MarketIndexCollector().get_realtime_index(), ensure_ascii=False, indent=2))
